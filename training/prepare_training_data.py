@@ -4,15 +4,27 @@ import os
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 
-INPUT_PATH = os.path.join(
-    PROJECT_ROOT,
-    "data",
-    "splits",
-    "train.jsonl"
-)
+SPLITS = {
+    "train": os.path.join(
+        PROJECT_ROOT, "data", "splits", "train.jsonl"
+    ),
+    "validation": os.path.join(
+        PROJECT_ROOT, "data", "splits", "validation.jsonl"
+    ),
+    "test": os.path.join(
+        PROJECT_ROOT, "data", "splits", "test.jsonl"
+    ),
+}
 
 
 def build_prompt(example):
+    """
+    Build the canonical prompt used for all three models.
+
+    The prompt content is intentionally model-independent.
+    Model-specific chat templates are applied later during
+    tokenization.
+    """
 
     setting = example["setting"]
     input_character = example["input_character"]
@@ -78,35 +90,50 @@ def build_prompt(example):
     )
 
     lines.append(
-        f"Room objects: "
-        f"{', '.join(world.get('room_objects', [])) or 'None'}"
+        "Room objects: "
+        + (
+            ", ".join(world.get("room_objects", []))
+            or "None"
+        )
     )
 
     lines.append(
-        f"Room agents: "
-        f"{', '.join(world.get('room_agents', [])) or 'None'}"
+        "Room agents: "
+        + (
+            ", ".join(world.get("room_agents", []))
+            or "None"
+        )
     )
 
     lines.append(
-        f"Carrying: "
-        f"{', '.join(world.get('carrying', [])) or 'None'}"
+        "Carrying: "
+        + (
+            ", ".join(world.get("carrying", []))
+            or "None"
+        )
     )
 
     lines.append(
-        f"Wearing: "
-        f"{', '.join(world.get('wearing', [])) or 'None'}"
+        "Wearing: "
+        + (
+            ", ".join(world.get("wearing", []))
+            or "None"
+        )
     )
 
     lines.append(
-        f"Wielding: "
-        f"{', '.join(world.get('wielding', [])) or 'None'}"
+        "Wielding: "
+        + (
+            ", ".join(world.get("wielding", []))
+            or "None"
+        )
     )
 
-    available = world.get("available_actions", [])
+    available_actions = world.get("available_actions", [])
 
-    if available:
+    if available_actions:
         lines.append("Available actions:")
-        for action in available:
+        for action in available_actions:
             lines.append(f"- {action}")
     else:
         lines.append("Available actions: None")
@@ -140,17 +167,15 @@ def build_prompt(example):
     lines.append(
         f"Character: {input_character.get('name', '')}"
     )
-
     lines.append(
         f"Input: {example['input']}"
     )
-
     lines.append(
         f"Input type: {example['input_type']}"
     )
 
     # --------------------------------------------------
-    # Response
+    # Response marker
     # --------------------------------------------------
 
     lines.append("\n### RESPONSE")
@@ -158,40 +183,75 @@ def build_prompt(example):
     return "\n".join(lines)
 
 
-def main():
+def load_split(split_name):
+    """
+    Load one JSONL split.
+    """
 
-    print("=" * 70)
-    print("TRAINING FORMAT PREVIEW")
-    print("=" * 70)
+    path = SPLITS[split_name]
 
     examples = []
 
-    with open(INPUT_PATH, "r", encoding="utf-8") as f:
-
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
+            if line.strip():
+                examples.append(json.loads(line))
 
-            examples.append(json.loads(line))
+    return examples
 
-            if len(examples) >= 5:
-                break
 
-    print(f"\nLoaded {len(examples)} examples for preview.")
+def prepare_example(example):
+    """
+    Convert one processed example into the canonical
+    prompt/target representation.
 
-    for i, example in enumerate(examples):
+    Tokenization is intentionally NOT performed here.
+    """
 
-        prompt = build_prompt(example)
+    prompt = build_prompt(example)
+    target = example["target"]
 
-        print("\n" + "=" * 70)
-        print(f"EXAMPLE {i + 1}")
-        print("=" * 70)
+    return {
+        "record_id": example["record_id"],
+        "turn_id": example["turn_id"],
+        "input_type": example["input_type"],
+        "prompt": prompt,
+        "target": target,
+    }
 
-        print(prompt)
+
+def main():
+
+    print("=" * 70)
+    print("TRAINING DATA PREPARATION")
+    print("=" * 70)
+
+    for split_name in SPLITS:
+
+        print(f"\nLoading {split_name} split...")
+
+        examples = load_split(split_name)
+
+        print(f"Examples loaded: {len(examples):,}")
+
+        if not examples:
+            print("WARNING: split is empty.")
+            continue
+
+        prepared = prepare_example(examples[0])
+
+        print("\nFirst example:")
+        print("-" * 70)
+
+        print(prepared["prompt"])
 
         print("\n### TARGET")
-        print(example["target"])
+        print(prepared["target"])
+
+        print("-" * 70)
 
     print("\n" + "=" * 70)
-    print("PREVIEW COMPLETE")
+    print("PREPARATION CHECK COMPLETE")
     print("=" * 70)
 
 
