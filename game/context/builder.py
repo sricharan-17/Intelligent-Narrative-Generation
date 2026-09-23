@@ -46,7 +46,8 @@ class ContextBuilder:
             input_type=interaction.input_type,
             location=location,
             input_character=interaction.input_character,
-            responder_character=interaction.responder_character,
+            # RAGQuery represents "no responder" as an empty string.
+            responder_character=interaction.responder_character or "",
             relevant_entities=relevant_entities,
         )
 
@@ -79,6 +80,10 @@ class ContextBuilder:
             interaction.input_character,
             interaction.responder_character,
         ):
+            # World/object interactions have no responder character.
+            if name is None:
+                continue
+
             normalized = name.strip()
             key = normalized.lower()
 

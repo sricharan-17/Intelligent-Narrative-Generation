@@ -227,3 +227,55 @@ def test_negative_history_limit_is_rejected():
         assert False, "Expected ValueError"
     except ValueError:
         pass
+
+
+def test_relevant_entities_without_responder():
+    state = GameState(
+        location=Location("Treasury"),
+        characters=[Character("Player")],
+        objects=[GameObject("Chest")],
+    )
+    manager = GameStateManager(state)
+    retriever = FakeRetriever()
+
+    interaction = Interaction(
+        input="I hit the chest with my sword.",
+        input_type="action",
+        input_character="Player",
+        responder_character=None,
+    )
+
+    context = ContextBuilder(retriever).build(interaction, manager)
+
+    query = retriever.queries[0]
+
+    assert query.relevant_entities == ["Player"]
+    assert None not in query.relevant_entities
+    assert "None" not in query.relevant_entities
+    assert query.input_character == "Player"
+    assert query.responder_character == ""
+    assert context.interaction.responder_character is None
+
+
+def test_relevant_entities_with_responder():
+    state = GameState(
+        location=Location("Gatehouse"),
+        characters=[Character("Player"), Character("Guard")],
+    )
+    manager = GameStateManager(state)
+    retriever = FakeRetriever()
+
+    interaction = Interaction(
+        input="Where is the key?",
+        input_type="speech",
+        input_character="Player",
+        responder_character="Guard",
+    )
+
+    context = ContextBuilder(retriever).build(interaction, manager)
+
+    query = retriever.queries[0]
+
+    assert query.relevant_entities == ["Player", "Guard"]
+    assert query.responder_character == "Guard"
+    assert context.interaction.responder_character == "Guard"

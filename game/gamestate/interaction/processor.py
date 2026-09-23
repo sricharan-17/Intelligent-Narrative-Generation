@@ -11,7 +11,7 @@ class InputInteractionProcessor:
         input_text: str,
         input_type: str,
         input_character: str,
-        responder_character: str,
+        responder_character: str | None = None,
     ) -> Interaction:
         """Create an Interaction from player input.
 
@@ -32,13 +32,20 @@ class InputInteractionProcessor:
         if not isinstance(input_character, str):
             raise TypeError("input_character must be a string")
 
-        if not isinstance(responder_character, str):
-            raise TypeError("responder_character must be a string")
+        # None means no character responds (e.g. a world/object action).
+        if responder_character is not None and not isinstance(
+            responder_character, str
+        ):
+            raise TypeError("responder_character must be a string or None")
 
         normalized_input = " ".join(input_text.split())
         normalized_type = input_type.strip().lower()
         normalized_input_character = input_character.strip()
-        normalized_responder_character = responder_character.strip()
+        normalized_responder_character = (
+            responder_character.strip()
+            if responder_character is not None
+            else None
+        )
 
         if not normalized_input:
             raise ValueError("input_text cannot be empty")
@@ -52,7 +59,11 @@ class InputInteractionProcessor:
         if not normalized_input_character:
             raise ValueError("input_character cannot be empty")
 
-        if not normalized_responder_character:
+        # A supplied responder must be a real name; use None for no responder.
+        if (
+            normalized_responder_character is not None
+            and not normalized_responder_character
+        ):
             raise ValueError("responder_character cannot be empty")
 
         return Interaction(
