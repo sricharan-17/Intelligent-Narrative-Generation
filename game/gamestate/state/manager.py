@@ -107,8 +107,37 @@ class GameStateManager:
     ) -> bool:
         """Apply a previously validated state change atomically."""
 
+        return self.apply_state_changes((action,))
+
+    def apply_state_changes(
+        self,
+        changes: tuple[StateChangeAction, ...],
+    ) -> bool:
+        """Apply several state changes atomically as a single turn.
+
+        If any change fails, nothing is committed and the turn is unchanged.
+        """
+
         # Work on a copy first.
         candidate = deepcopy(self._state)
+
+        for action in changes:
+            if not self._apply_to(candidate, action):
+                return False
+
+        candidate.turn += 1
+
+        # Commit only after every operation succeeded.
+        self._state = candidate
+
+        return True
+
+    @staticmethod
+    def _apply_to(
+        candidate: GameState,
+        action: StateChangeAction,
+    ) -> bool:
+        """Apply one state change to a working copy of the state."""
 
         if action.action_type == "object_state_change":
             if action.target is None:
@@ -153,10 +182,5 @@ class GameStateManager:
                 ),
             )
         )
-
-        candidate.turn += 1
-
-        # Commit only after every operation succeeded.
-        self._state = candidate
 
         return True
