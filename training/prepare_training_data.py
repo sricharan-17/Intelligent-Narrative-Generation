@@ -1,44 +1,35 @@
 import json
 import os
 
+from training.config import (
+    TRAIN_FILE,
+    VALIDATION_FILE,
+    TEST_FILE,
+)
+
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
-
-SPLITS = {
-    "train": os.path.join(
-        PROJECT_ROOT, "data", "splits", "train.jsonl"
-    ),
-    "validation": os.path.join(
-        PROJECT_ROOT, "data", "splits", "validation.jsonl"
-    ),
-    "test": os.path.join(
-        PROJECT_ROOT, "data", "splits", "test.jsonl"
-    ),
-}
 
 
 def build_prompt(example):
     """
-    Build the canonical prompt used for all three models.
-
-    The prompt content is intentionally model-independent.
-    Model-specific chat templates are applied later during
-    tokenization.
+    Build the canonical semantic prompt used for all models.
+    Model-specific tokenization and chat templates are applied later.
     """
 
     setting = example["setting"]
     input_character = example["input_character"]
     responder_character = example["responder_character"]
     world = example["world_state"]
+    history = example["history"]
 
     lines = []
 
-    lines.append("You are an interactive fantasy game narrator.")
     lines.append(
-        "Generate the response of the responding character "
-        "to the current player interaction while remaining "
-        "consistent with the game world, character personas, "
-        "available actions, and conversation history."
+        "You are an interactive fantasy game narrator. "
+        "Generate the response of the responder character based on "
+        "the current world state, character personas, available actions, "
+        "conversation history, and current player input."
     )
 
     # --------------------------------------------------
@@ -46,11 +37,19 @@ def build_prompt(example):
     # --------------------------------------------------
 
     lines.append("\n### SETTING")
-    lines.append(f"Name: {setting.get('name', '')}")
-    lines.append(f"Category: {setting.get('category', '')}")
+
+    lines.append(
+        f"Name: {setting.get('name', '')}"
+    )
+
+    lines.append(
+        f"Category: {setting.get('category', '')}"
+    )
+
     lines.append(
         f"Description: {setting.get('description', '')}"
     )
+
     lines.append(
         f"Background: {setting.get('background', '')}"
     )
@@ -60,23 +59,27 @@ def build_prompt(example):
     # --------------------------------------------------
 
     lines.append("\n### INPUT CHARACTER")
+
     lines.append(
         f"Name: {input_character.get('name', '')}"
     )
+
     lines.append(
-        f"Persona: {input_character.get('persona', '')}"
+        f"Persona:\n{input_character.get('persona', '')}"
     )
 
     # --------------------------------------------------
-    # Responding character
+    # Responder character
     # --------------------------------------------------
 
     lines.append("\n### RESPONDING CHARACTER")
+
     lines.append(
         f"Name: {responder_character.get('name', '')}"
     )
+
     lines.append(
-        f"Persona: {responder_character.get('persona', '')}"
+        f"Persona:\n{responder_character.get('persona', '')}"
     )
 
     # --------------------------------------------------
@@ -104,6 +107,15 @@ def build_prompt(example):
             or "None"
         )
     )
+
+    object_descriptions = world.get("object_descriptions", {})
+
+    if object_descriptions:
+        lines.append("Object descriptions:")
+        for object_name, description in object_descriptions.items():
+            lines.append(f"- {object_name}: {description}")
+    else:
+        lines.append("Object descriptions: None")
 
     lines.append(
         "Carrying: "
@@ -139,43 +151,37 @@ def build_prompt(example):
         lines.append("Available actions: None")
 
     # --------------------------------------------------
-    # Conversation history
+    # History
     # --------------------------------------------------
 
     lines.append("\n### HISTORY")
 
-    history = example.get("history", [])
-
     if history:
         for item in history:
-            speaker = item.get("speaker", "unknown")
-            item_type = item.get("type", "unknown")
-            text = item.get("text", "")
-
             lines.append(
-                f"{speaker} [{item_type}]: {text}"
+                f"{item['speaker']} "
+                f"[{item['type']}]: "
+                f"{item['text']}"
             )
     else:
-        lines.append("No previous interaction.")
+        lines.append("None")
 
     # --------------------------------------------------
     # Current input
     # --------------------------------------------------
 
-    lines.append("\n### CURRENT INPUT")
-
-    lines.append(
-        f"Character: {input_character.get('name', '')}"
-    )
-    lines.append(
-        f"Input: {example['input']}"
-    )
-    lines.append(
-        f"Input type: {example['input_type']}"
-    )
+    lines.append("\n### PLAYER INPUT")
+    lines.append(example["input"])
 
     # --------------------------------------------------
-    # Response marker
+    # Input type
+    # --------------------------------------------------
+
+    lines.append("\n### INPUT TYPE")
+    lines.append(example["input_type"])
+
+    # --------------------------------------------------
+    # Response
     # --------------------------------------------------
 
     lines.append("\n### RESPONSE")
@@ -183,41 +189,18 @@ def build_prompt(example):
     return "\n".join(lines)
 
 
-def load_split(split_name):
-    """
-    Load one JSONL split.
-    """
+def load_jsonl(path):
+    data = []
 
-    path = SPLITS[split_name]
-
-    examples = []
-
-    with open(path, "r", encoding="utf-8") as f:
+    with open(
+        os.path.join(PROJECT_ROOT, path),
+        "r",
+        encoding="utf-8"
+    ) as f:
         for line in f:
-            if line.strip():
-                examples.append(json.loads(line))
+            data.append(json.loads(line))
 
-    return examples
-
-
-def prepare_example(example):
-    """
-    Convert one processed example into the canonical
-    prompt/target representation.
-
-    Tokenization is intentionally NOT performed here.
-    """
-
-    prompt = build_prompt(example)
-    target = example["target"]
-
-    return {
-        "record_id": example["record_id"],
-        "turn_id": example["turn_id"],
-        "input_type": example["input_type"],
-        "prompt": prompt,
-        "target": target,
-    }
+    return data
 
 
 def main():
@@ -226,32 +209,65 @@ def main():
     print("TRAINING DATA PREPARATION")
     print("=" * 70)
 
-    for split_name in SPLITS:
+    train_data = load_jsonl(TRAIN_FILE)
+    validation_data = load_jsonl(VALIDATION_FILE)
+    test_data = load_jsonl(TEST_FILE)
 
-        print(f"\nLoading {split_name} split...")
+    print(f"\nTrain examples:      {len(train_data):,}")
+    print(f"Validation examples: {len(validation_data):,}")
+    print(f"Test examples:       {len(test_data):,}")
 
-        examples = load_split(split_name)
-
-        print(f"Examples loaded: {len(examples):,}")
-
-        if not examples:
-            print("WARNING: split is empty.")
-            continue
-
-        prepared = prepare_example(examples[0])
-
-        print("\nFirst example:")
-        print("-" * 70)
-
-        print(prepared["prompt"])
-
-        print("\n### TARGET")
-        print(prepared["target"])
-
-        print("-" * 70)
+    # --------------------------------------------------
+    # Preview
+    # --------------------------------------------------
 
     print("\n" + "=" * 70)
-    print("PREPARATION CHECK COMPLETE")
+    print("TRAINING EXAMPLE PREVIEW")
+    print("=" * 70)
+
+    if train_data:
+        example = train_data[0]
+
+        print("\nPROMPT:")
+        print("-" * 70)
+        print(build_prompt(example))
+
+        print("\nTARGET:")
+        print("-" * 70)
+        print(example["target"])
+
+    print("\n" + "=" * 70)
+    print("VALIDATION EXAMPLE PREVIEW")
+    print("=" * 70)
+
+    if validation_data:
+        example = validation_data[0]
+
+        print("\nPROMPT:")
+        print("-" * 70)
+        print(build_prompt(example))
+
+        print("\nTARGET:")
+        print("-" * 70)
+        print(example["target"])
+
+    print("\n" + "=" * 70)
+    print("TEST EXAMPLE PREVIEW")
+    print("=" * 70)
+
+    if test_data:
+        example = test_data[0]
+
+        print("\nPROMPT:")
+        print("-" * 70)
+        print(build_prompt(example))
+
+        print("\nTARGET:")
+        print("-" * 70)
+        print(example["target"])
+
+    print("\n" + "=" * 70)
+    print("DONE")
     print("=" * 70)
 
 

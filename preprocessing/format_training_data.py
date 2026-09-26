@@ -18,15 +18,15 @@ def build_prompt(example):
     input_character = example["input_character"]
     responder_character = example["responder_character"]
     world = example["world_state"]
+    history = example["history"]
 
     lines = []
 
-    lines.append("You are an interactive fantasy game narrator.")
     lines.append(
-        "Generate the response of the responding character "
-        "to the current player interaction while remaining "
-        "consistent with the game world, character personas, "
-        "available actions, and conversation history."
+        "You are an interactive fantasy game narrator. "
+        "Generate the response of the responder character based on "
+        "the current world state, character personas, available actions, "
+        "conversation history, and current player input."
     )
 
     # --------------------------------------------------
@@ -34,11 +34,19 @@ def build_prompt(example):
     # --------------------------------------------------
 
     lines.append("\n### SETTING")
-    lines.append(f"Name: {setting.get('name', '')}")
-    lines.append(f"Category: {setting.get('category', '')}")
+
+    lines.append(
+        f"Name: {setting.get('name', '')}"
+    )
+
+    lines.append(
+        f"Category: {setting.get('category', '')}"
+    )
+
     lines.append(
         f"Description: {setting.get('description', '')}"
     )
+
     lines.append(
         f"Background: {setting.get('background', '')}"
     )
@@ -48,23 +56,27 @@ def build_prompt(example):
     # --------------------------------------------------
 
     lines.append("\n### INPUT CHARACTER")
+
     lines.append(
         f"Name: {input_character.get('name', '')}"
     )
+
     lines.append(
-        f"Persona: {input_character.get('persona', '')}"
+        f"Persona:\n{input_character.get('persona', '')}"
     )
 
     # --------------------------------------------------
-    # Responding character
+    # Responder character
     # --------------------------------------------------
 
     lines.append("\n### RESPONDING CHARACTER")
+
     lines.append(
         f"Name: {responder_character.get('name', '')}"
     )
+
     lines.append(
-        f"Persona: {responder_character.get('persona', '')}"
+        f"Persona:\n{responder_character.get('persona', '')}"
     )
 
     # --------------------------------------------------
@@ -87,6 +99,15 @@ def build_prompt(example):
         f"{', '.join(world.get('room_agents', [])) or 'None'}"
     )
 
+    object_descriptions = world.get("object_descriptions", {})
+
+    if object_descriptions:
+        lines.append("Object descriptions:")
+        for object_name, description in object_descriptions.items():
+            lines.append(f"- {object_name}: {description}")
+    else:
+        lines.append("Object descriptions: None")
+
     lines.append(
         f"Carrying: "
         f"{', '.join(world.get('carrying', [])) or 'None'}"
@@ -106,47 +127,49 @@ def build_prompt(example):
 
     if available:
         lines.append("Available actions:")
+
         for action in available:
             lines.append(f"- {action}")
     else:
         lines.append("Available actions: None")
 
     # --------------------------------------------------
-    # Conversation history
+    # History
     # --------------------------------------------------
 
     lines.append("\n### HISTORY")
 
-    history = example.get("history", [])
-
     if history:
+
         for item in history:
-            speaker = item.get("speaker", "unknown")
-            item_type = item.get("type", "unknown")
-            text = item.get("text", "")
 
             lines.append(
-                f"{speaker} [{item_type}]: {text}"
+                f"{item['speaker']} "
+                f"[{item['type']}]: "
+                f"{item['text']}"
             )
+
     else:
-        lines.append("No previous interaction.")
+        lines.append("None")
 
     # --------------------------------------------------
     # Current input
     # --------------------------------------------------
 
-    lines.append("\n### CURRENT INPUT")
+    lines.append("\n### PLAYER INPUT")
 
     lines.append(
-        f"Character: {input_character.get('name', '')}"
+        example["input"]
     )
 
-    lines.append(
-        f"Input: {example['input']}"
-    )
+    # --------------------------------------------------
+    # Input type
+    # --------------------------------------------------
+
+    lines.append("\n### INPUT TYPE")
 
     lines.append(
-        f"Input type: {example['input_type']}"
+        example["input_type"]
     )
 
     # --------------------------------------------------
@@ -161,37 +184,42 @@ def build_prompt(example):
 def main():
 
     print("=" * 70)
-    print("TRAINING FORMAT PREVIEW")
+    print("TRAINING DATA FORMAT PREVIEW")
     print("=" * 70)
 
-    examples = []
+    count = 0
 
-    with open(INPUT_PATH, "r", encoding="utf-8") as f:
+    with open(
+        INPUT_PATH,
+        "r",
+        encoding="utf-8"
+    ) as f:
 
         for line in f:
 
-            examples.append(json.loads(line))
+            example = json.loads(line)
 
-            if len(examples) >= 5:
+            prompt = build_prompt(example)
+
+            print("\n" + "=" * 70)
+            print(f"EXAMPLE {count + 1}")
+            print("=" * 70)
+
+            print("\nPROMPT:")
+            print("-" * 70)
+            print(prompt)
+
+            print("\nTARGET:")
+            print("-" * 70)
+            print(example["target"])
+
+            count += 1
+
+            if count >= 5:
                 break
 
-    print(f"\nLoaded {len(examples)} examples for preview.")
-
-    for i, example in enumerate(examples):
-
-        prompt = build_prompt(example)
-
-        print("\n" + "=" * 70)
-        print(f"EXAMPLE {i + 1}")
-        print("=" * 70)
-
-        print(prompt)
-
-        print("\n### TARGET")
-        print(example["target"])
-
     print("\n" + "=" * 70)
-    print("PREVIEW COMPLETE")
+    print(f"Previewed {count} examples")
     print("=" * 70)
 
 
