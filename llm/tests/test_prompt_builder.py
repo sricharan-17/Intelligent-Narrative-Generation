@@ -2,13 +2,20 @@ from game.context.models import NarrativeContext
 from game.gamestate.interaction.models import Interaction
 from game.gamestate.state.models import (
     Character,
+    GameObject,
     GameState,
     HistoryEntry,
     Location,
 )
 from rag.knowledge.models import RetrievedKnowledge
 
-from llm.prompt_builder import NarrativePromptBuilder
+from llm.prompt_builder import (
+    NARRATOR_INPUT_TYPE_INSTRUCTIONS,
+    NARRATOR_SYSTEM_PROMPT,
+    NARRATOR_TASK,
+    SYSTEM_PROMPT,
+    NarrativePromptBuilder,
+)
 
 
 def test_prompt_builder_contains_full_narrative_context():
@@ -108,3 +115,77 @@ def test_prompt_builder_handles_empty_history_and_knowledge():
     assert "(none)" in prompt
     assert "Open the gate." in prompt
     assert "action" in prompt
+
+
+def build_world_context(responder_character):
+    interaction = Interaction(
+        input_character="Player",
+        responder_character=responder_character,
+        input="I hit the chest with my sword.",
+        input_type="action",
+    )
+
+    state = GameState(
+        location=Location(name="Treasury"),
+        characters=[
+            Character(name="Player", description="A curious adventurer."),
+            Character(name="Guard", description="A tired castle guard."),
+        ],
+        objects=[
+            GameObject(
+                name="Chest",
+                description="An iron-bound chest.",
+                state={"locked": True},
+            ),
+        ],
+    )
+
+    return NarrativeContext(
+        interaction=interaction,
+        game_state=state,
+        history=(),
+        retrieved_knowledge=RetrievedKnowledge(),
+    )
+
+
+def test_prompt_without_responder_asks_for_narration():
+    messages = NarrativePromptBuilder().build_messages(
+        build_world_context(None)
+    )
+
+    system_prompt = messages[0]["content"]
+    prompt = messages[1]["content"]
+
+    assert system_prompt == NARRATOR_SYSTEM_PROMPT
+    assert NARRATOR_TASK in prompt
+    assert NARRATOR_INPUT_TYPE_INSTRUCTIONS in prompt
+
+    # No nonexistent responder character to impersonate.
+    assert "RESPONDER CHARACTER" not in prompt
+    assert "Unknown" not in prompt
+    assert "responder" not in system_prompt.lower()
+    assert "responder" not in prompt.lower()
+    assert "LLM" not in prompt
+
+    # The rest of the context is still present.
+    assert "INPUT CHARACTER\nPlayer" in prompt
+    assert "Treasury" in prompt
+    assert "Chest" in prompt
+    assert "I hit the chest with my sword." in prompt
+
+
+def test_prompt_with_responder_is_unchanged_by_narrator_support():
+    messages = NarrativePromptBuilder().build_messages(
+        build_world_context("Guard")
+    )
+
+    system_prompt = messages[0]["content"]
+    prompt = messages[1]["content"]
+
+    assert system_prompt == SYSTEM_PROMPT
+    assert prompt.startswith(
+        "TASK\n"
+        "Generate exactly one natural next response from the RESPONDER CHARACTER.\n"
+    )
+    assert "RESPONDER CHARACTER\nGuard\nPersona/Description: A tired castle guard." in prompt
+    assert NARRATOR_TASK not in prompt

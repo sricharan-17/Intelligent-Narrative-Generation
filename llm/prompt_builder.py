@@ -7,6 +7,29 @@ SYSTEM_PROMPT = (
     "character persona, conversation history, and current input."
 )
 
+# World/object interactions have no responder character, so the model
+# narrates the outcome instead of speaking as a character.
+NARRATOR_SYSTEM_PROMPT = (
+    "You are the narrator of an interactive game narrative. "
+    "Describe what happens in the game world while respecting the game state, "
+    "conversation history, and current input."
+)
+
+NARRATOR_TASK = (
+    "TASK\n"
+    "No character is responding to this input.\n"
+    "Generate exactly one short narration of what happens in the game world as a result of the current input.\n"
+    "Do not speak as any character, and do not respond as the INPUT CHARACTER.\n"
+    "Use the world state, conversation history, and current input to determine the outcome.\n"
+    "Return only the narration itself."
+)
+
+NARRATOR_INPUT_TYPE_INSTRUCTIONS = (
+    "INPUT TYPE INSTRUCTIONS\n"
+    "If the input type is action, describe the outcome of that action in the game world.\n"
+    "If the input type is speech, describe how the game world reacts to it."
+)
+
 
 class NarrativePromptBuilder:
     """Converts NarrativeContext into the prompt used by the fine-tuned LLM."""
@@ -16,26 +39,35 @@ class NarrativePromptBuilder:
         state = context.game_state
         knowledge = context.retrieved_knowledge
 
+        has_responder = interaction.responder_character is not None
+
         sections: list[str] = []
 
-        sections.append(
-            "TASK\n"
-            "Generate exactly one natural next response from the RESPONDER CHARACTER.\n"
-            "Do not respond as the INPUT CHARACTER.\n"
-            "Use the conversation history and current input to determine the next response.\n"
-            "Stay consistent with the RESPONDER CHARACTER's persona, role, and situation.\n"
-            "Return only the response itself."
-        )
+        if has_responder:
+            sections.append(
+                "TASK\n"
+                "Generate exactly one natural next response from the RESPONDER CHARACTER.\n"
+                "Do not respond as the INPUT CHARACTER.\n"
+                "Use the conversation history and current input to determine the next response.\n"
+                "Stay consistent with the RESPONDER CHARACTER's persona, role, and situation.\n"
+                "Return only the response itself."
+            )
 
-        sections.append(
-            "INPUT TYPE INSTRUCTIONS\n"
-            "If the input type is speech, generate what the responder should say next.\n"
-            "If the input type is action, generate the responder's appropriate next response to that action."
-        )
+            sections.append(
+                "INPUT TYPE INSTRUCTIONS\n"
+                "If the input type is speech, generate what the responder should say next.\n"
+                "If the input type is action, generate the responder's appropriate next response to that action."
+            )
+        else:
+            sections.append(NARRATOR_TASK)
+            sections.append(NARRATOR_INPUT_TYPE_INSTRUCTIONS)
 
         sections.append(self._format_setting(state))
         sections.append(self._format_input_character(interaction, state))
-        sections.append(self._format_responder(interaction, state))
+
+        if has_responder:
+            sections.append(self._format_responder(interaction, state))
+
         sections.append(self._format_world_state(state))
         sections.append(self._format_history(context))
         sections.append(self._format_knowledge(knowledge))
@@ -55,7 +87,9 @@ class NarrativePromptBuilder:
         return [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT,
+                "content": (
+                    SYSTEM_PROMPT if has_responder else NARRATOR_SYSTEM_PROMPT
+                ),
             },
             {
                 "role": "user",
