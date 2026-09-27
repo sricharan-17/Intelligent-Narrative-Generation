@@ -1,0 +1,122 @@
+[
+  {
+    "document_id": "loc_ravenmoor",
+    "source_type": "location",
+    "entity_id": "Ravenmoor",
+    "title": "Location: Ravenmoor",
+    "content": "Ravenmoor is a small village surrounded by dense woodland in the Kingdom of Eldoria. It prospered under the old royal family but declined after Blackstone Castle was abandoned. Most villagers now keep their heads down and bar their doors at night.",
+    "metadata": {}
+  },
+  {
+    "document_id": "loc_old_tavern",
+    "source_type": "location",
+    "entity_id": "Old Tavern",
+    "title": "Location: Old Tavern",
+    "content": "The Old Tavern is a weathered inn in Ravenmoor with scarred wooden tables and warm lanterns. It is the busiest meeting place in the village, where travelers trade rumors over cheap ale. The tavern keeper knows more stories about Blackstone Castle than most.",
+    "metadata": {}
+  },
+  {
+    "document_id": "char_mira",
+    "source_type": "character",
+    "entity_id": "Mira",
+    "title": "Character: Mira",
+    "content": "Mira is the practical and observant keeper of the Old Tavern. She hears every rumor that passes through Ravenmoor but is careful when dangerous subjects such as Blackstone Castle come up. She does not trust Elara.",
+    "metadata": {}
+  },
+  {
+    "document_id": "char_elara",
+    "source_type": "character",
+    "entity_id": "Elara",
+    "title": "Character: Elara",
+    "content": "Elara is a calm, secretive traveler who arrived in Ravenmoor shortly before the strange activity at Blackstone Castle began. She speaks of the old royal family with unusual familiarity and seems to know more about the castle and the Ashen Crown than she admits.",
+    "metadata": {}
+  },
+  {
+    "document_id": "loc_blackstone_castle",
+    "source_type": "location",
+    "entity_id": "Blackstone Castle",
+    "title": "Location: Blackstone Castle",
+    "content": "Blackstone Castle is a ruined stone fortress overlooking the woodland around Ravenmoor. It belonged to the old royal family and was abandoned after the final heir disappeared and the Ashen Crown was lost. Lately, lights have been seen moving behind its broken walls.",
+    "metadata": {}
+  },
+  {
+    "document_id": "item_ashen_crown",
+    "source_type": "item",
+    "entity_id": "Ashen Crown",
+    "title": "Artifact: Ashen Crown",
+    "content": "The Ashen Crown is the legendary crown of the old royal family, forged from grey-black iron said to have cooled in the ashes of the first king's pyre. It vanished on the same night the final royal heir disappeared. Some believe it still lies hidden within Blackstone Castle.",
+    "metadata": {}
+  },
+  {
+    "document_id": "loc_whispering_forest",
+    "source_type": "location",
+    "entity_id": "Whispering Forest",
+    "title": "Location: Whispering Forest",
+    "content": "The Whispering Forest is the dense woodland surrounding Ravenmoor and the road to Blackstone Castle. Villagers avoid it after sunset because strange whispers are sometimes heard among the trees.",
+    "metadata": {}
+  },
+  {
+    "document_id": "item_ancient_key",
+    "source_type": "item",
+    "entity_id": "Ancient Key",
+    "title": "Item: Ancient Key",
+    "content": "The Ancient Key is an old iron key bearing the royal crest. It opens the Castle Gate of Blackstone Castle. It is said to have been hidden in Ravenmoor when the castle was abandoned.",
+    "metadata": {}
+  },
+  {
+    "document_id": "item_royal_amulet",
+    "source_type": "item",
+    "entity_id": "Royal Amulet",
+    "title": "Item: Royal Amulet",
+    "content": "The Royal Amulet is a silver amulet bearing the royal crown insignia. Only members of the royal household wore it, so whoever carries it may have a claim to the old bloodline.",
+    "metadata": {}
+  },
+  {
+    "document_id": "item_sealed_letter",
+    "source_type": "item",
+    "entity_id": "Sealed Letter",
+    "title": "Item: Sealed Letter",
+    "content": "The Sealed Letter is an old letter closed with the royal crest in faded red wax. It was left at the Old Tavern years ago and never collected. The tavern keeper keeps it behind the bar and has never dared to open it.",
+    "metadata": {}
+  },
+  {
+    "document_id": "item_castle_gate",
+    "source_type": "item",
+    "entity_id": "Castle Gate",
+    "title": "Item: Castle Gate",
+    "content": "The Castle Gate is the old iron gate that bars the way into Blackstone Castle. It has been locked since the castle was abandoned and bears the same royal crest as the Ancient Key.",
+    "metadata": {}
+  },
+  {
+    "document_id": "history_royal_disappearance",
+    "source_type": "history",
+    "entity_id": "Royal Disappearance",
+    "title": "History: Royal Disappearance",
+    "content": "Years ago the final heir of the old royal family vanished from Blackstone Castle in a single night. The Ashen Crown disappeared at the same time, the royal court scattered, and the castle was sealed and left to ruin.",
+    "metadata": {}
+  },
+  {
+    "document_id": "lore_tavern_rumors",
+    "source_type": "world_lore",
+    "entity_id": "Tavern Rumors",
+    "title": "Lore: Tavern Rumors",
+    "content": "Travelers at the Old Tavern whisper that lights move inside Blackstone Castle at night and that something still guards its halls. Others claim the Sealed Letter behind the bar was written by the lost heir.",
+    "metadata": {}
+  },
+  {
+    "document_id": "char_captain_rowan",
+    "source_type": "character",
+    "entity_id": "Captain Rowan",
+    "title": "Character: Captain Rowan",
+    "content": "Captain Rowan commands the village guard of Ravenmoor. He is serious and protective, and believes Blackstone Castle should remain sealed for the safety of the village. He is wary of strangers who ask about the castle.",
+    "metadata": {}
+  },
+  {
+    "document_id": "char_the_warden",
+    "source_type": "character",
+    "entity_id": "The Warden",
+    "title": "Character: The Warden",
+    "content": "The Warden is the ancient guardian of Blackstone Castle. Formal and cryptic, it protects the secrets of the old royal family and speaks only to those who prove they have a right to enter.",
+    "metadata": {}
+  }
+]
