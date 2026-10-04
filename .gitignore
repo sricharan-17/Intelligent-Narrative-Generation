@@ -33,3 +33,12 @@ evaluation/results/
 .DS_Store
 Thumbs.db
 training_env/
+
+# Local model artifacts
+models/
+
+# Accidental local file
+-files game
+
+# Local backup files
+llm/generator_local_backup.py

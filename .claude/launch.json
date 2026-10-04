@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "narrative-ui",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["ui/app.py", "--port", "7860"],
+      "port": 7860
+    }
+  ]
+}

@@ -1,5 +1,5 @@
+from rag.knowledge.models import RetrievedKnowledge
 from game.context.models import NarrativeContext
-from game.gamestate.interaction.models import Interaction
 from game.gamestate.state.models import (
     Character,
     GameObject,
@@ -7,185 +7,167 @@ from game.gamestate.state.models import (
     HistoryEntry,
     Location,
 )
-from rag.knowledge.models import RetrievedKnowledge
-
 from llm.prompt_builder import (
-    NARRATOR_INPUT_TYPE_INSTRUCTIONS,
     NARRATOR_SYSTEM_PROMPT,
-    NARRATOR_TASK,
     SYSTEM_PROMPT,
     NarrativePromptBuilder,
 )
 
 
-def test_prompt_builder_contains_full_narrative_context():
-    interaction = Interaction(
-        input_character="King",
-        responder_character="Spider",
-        input="What's this? An itsy bitsy spider!",
-        input_type="speech",
-    )
-
+def build_test_context(responder_character="Spider"):
     state = GameState(
+        setting={
+            "name": "Secret Tunnel",
+            "category": "Fantasy",
+            "description": "A dark underground tunnel.",
+            "background": "An ancient passage beneath the castle.",
+        },
         location=Location(
             name="Secret Tunnel",
-            description="A dark tunnel inside the castle.",
+            description="A dark underground tunnel.",
         ),
         characters=[
             Character(
                 name="King",
-                description="I am a brave and fearless king.",
-                present=True,
+                description="A powerful and cautious ruler.",
             ),
             Character(
                 name="Spider",
-                description="I am a large black spider that lives in dark places.",
-                present=True,
+                description="A mysterious creature living in the tunnel.",
             ),
         ],
-        inventory=["crown", "scepter"],
-        available_actions=["hit spider", "hug spider"],
+        objects=[
+            GameObject(
+                name="Crown",
+                description="A golden royal crown.",
+            ),
+            GameObject(
+                name="Scepter",
+                description="A jeweled royal scepter.",
+            ),
+        ],
+        inventory=["Crown", "Scepter"],
+        available_actions=[
+            "inspect the tunnel",
+            "talk to Spider",
+        ],
         history=[
             HistoryEntry(
                 turn=1,
                 speaker="King",
-                text="How did you get in here?",
+                text="Who are you?",
                 entry_type="speech",
             )
         ],
         turn=1,
     )
 
-    context = NarrativeContext(
-        interaction=interaction,
-        game_state=state,
-        history=tuple(state.history),
-        retrieved_knowledge=RetrievedKnowledge(),
+    return NarrativeContext(
+    interaction=type(
+        "Interaction",
+        (),
+        {
+            "input": "Tell me about this place.",
+            "input_type": "speech",
+            "input_character": "King",
+            "responder_character": responder_character,
+        },
+    )(),
+    game_state=state,
+    history=tuple(state.history),
+    retrieved_knowledge=RetrievedKnowledge(),
+
     )
 
-    messages = NarrativePromptBuilder().build_messages(context)
 
-    assert len(messages) == 2
+def test_prompt_builder_contains_full_narrative_context():
+    context = build_test_context()
+
+    builder = NarrativePromptBuilder()
+    messages = builder.build_messages(context)
+
     assert messages[0]["role"] == "system"
     assert messages[1]["role"] == "user"
 
     prompt = messages[1]["content"]
 
-    assert "RESPONDER CHARACTER" in prompt
-    assert "Spider" in prompt
-    assert "large black spider" in prompt
-
-    assert "INPUT CHARACTER" in prompt
-    assert "King" in prompt
-
+    assert "### SETTING" in prompt
     assert "Secret Tunnel" in prompt
-    assert "crown" in prompt
-    assert "scepter" in prompt
-    assert "hit spider" in prompt
+    assert "Fantasy" in prompt
 
-    assert "CONVERSATION HISTORY" in prompt
-    assert "How did you get in here?" in prompt
+    assert "### INPUT CHARACTER" in prompt
+    assert "Name: King" in prompt
 
-    assert "CURRENT INPUT" in prompt
-    assert "What's this? An itsy bitsy spider!" in prompt
+    assert "### RESPONDING CHARACTER" in prompt
+    assert "Name: Spider" in prompt
 
-    assert "INPUT TYPE" in prompt
+    assert "### WORLD STATE" in prompt
+    assert "Crown" in prompt
+    assert "Scepter" in prompt
+    assert "inspect the tunnel" in prompt
+
+    assert "### HISTORY" in prompt
+    assert "Who are you?" in prompt
+
+    assert "### PLAYER INPUT" in prompt
+    assert "Tell me about this place." in prompt
+
+    assert "### INPUT TYPE" in prompt
     assert "speech" in prompt
 
+    assert "### RESPONSE" in prompt
 
-def test_prompt_builder_handles_empty_history_and_knowledge():
-    interaction = Interaction(
-        input_character="Hero",
-        responder_character="Guard",
-        input="Open the gate.",
-        input_type="action",
-    )
+
+def test_empty_history():
+    context = build_test_context()
 
     context = NarrativeContext(
-        interaction=interaction,
-        game_state=GameState(),
+        interaction=context.interaction,
+        game_state=context.game_state,
         history=(),
-        retrieved_knowledge=RetrievedKnowledge(),
+        retrieved_knowledge=context.retrieved_knowledge,
     )
 
-    messages = NarrativePromptBuilder().build_messages(context)
+    builder = NarrativePromptBuilder()
+    messages = builder.build_messages(context)
 
     prompt = messages[1]["content"]
 
-    assert "(none)" in prompt
-    assert "Open the gate." in prompt
-    assert "action" in prompt
-
-
-def build_world_context(responder_character):
-    interaction = Interaction(
-        input_character="Player",
-        responder_character=responder_character,
-        input="I hit the chest with my sword.",
-        input_type="action",
-    )
-
-    state = GameState(
-        location=Location(name="Treasury"),
-        characters=[
-            Character(name="Player", description="A curious adventurer."),
-            Character(name="Guard", description="A tired castle guard."),
-        ],
-        objects=[
-            GameObject(
-                name="Chest",
-                description="An iron-bound chest.",
-                state={"locked": True},
-            ),
-        ],
-    )
-
-    return NarrativeContext(
-        interaction=interaction,
-        game_state=state,
-        history=(),
-        retrieved_knowledge=RetrievedKnowledge(),
-    )
+    assert "### HISTORY" in prompt
+    assert "None" in prompt
+    assert "### PLAYER INPUT" in prompt
+    assert "Tell me about this place." in prompt
 
 
 def test_prompt_without_responder_asks_for_narration():
-    messages = NarrativePromptBuilder().build_messages(
-        build_world_context(None)
-    )
+    context = build_test_context(responder_character=None)
 
-    system_prompt = messages[0]["content"]
+    builder = NarrativePromptBuilder()
+    messages = builder.build_messages(context)
+
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == NARRATOR_SYSTEM_PROMPT
+
     prompt = messages[1]["content"]
 
-    assert system_prompt == NARRATOR_SYSTEM_PROMPT
-    assert NARRATOR_TASK in prompt
-    assert NARRATOR_INPUT_TYPE_INSTRUCTIONS in prompt
-
-    # No nonexistent responder character to impersonate.
-    assert "RESPONDER CHARACTER" not in prompt
-    assert "Unknown" not in prompt
-    assert "responder" not in system_prompt.lower()
-    assert "responder" not in prompt.lower()
-    assert "LLM" not in prompt
-
-    # The rest of the context is still present.
-    assert "INPUT CHARACTER\nPlayer" in prompt
-    assert "Treasury" in prompt
-    assert "Chest" in prompt
-    assert "I hit the chest with my sword." in prompt
+    assert "### RESPONDING CHARACTER" not in prompt
+    assert "### INPUT CHARACTER" in prompt
+    assert "Name: King" in prompt
+    assert "### WORLD STATE" in prompt
+    assert "### PLAYER INPUT" in prompt
+    assert "### RESPONSE" in prompt
 
 
-def test_prompt_with_responder_is_unchanged_by_narrator_support():
-    messages = NarrativePromptBuilder().build_messages(
-        build_world_context("Guard")
-    )
+def test_prompt_with_responder_uses_character_system_prompt():
+    context = build_test_context()
 
-    system_prompt = messages[0]["content"]
+    builder = NarrativePromptBuilder()
+    messages = builder.build_messages(context)
+
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == SYSTEM_PROMPT
+
     prompt = messages[1]["content"]
 
-    assert system_prompt == SYSTEM_PROMPT
-    assert prompt.startswith(
-        "TASK\n"
-        "Generate exactly one natural next response from the RESPONDER CHARACTER.\n"
-    )
-    assert "RESPONDER CHARACTER\nGuard\nPersona/Description: A tired castle guard." in prompt
-    assert NARRATOR_TASK not in prompt
+    assert "### RESPONDING CHARACTER" in prompt
+    assert "Name: Spider" in prompt

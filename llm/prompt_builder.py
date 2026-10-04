@@ -1,95 +1,304 @@
 from game.context.models import NarrativeContext
 
 
+# Keep this aligned with the system instruction used during SmolLM2 training.
 SYSTEM_PROMPT = (
-    "You are the responder character in an interactive game narrative. "
-    "Generate the next response while respecting the game state, "
-    "character persona, conversation history, and current input."
+    "You are an interactive fantasy game narrator. "
+    "Generate the response of the responder character based on "
+    "the current world state, character personas, available actions, "
+    "conversation history, and current player input."
 )
 
-# World/object interactions have no responder character, so the model
-# narrates the outcome instead of speaking as a character.
 NARRATOR_SYSTEM_PROMPT = (
-    "You are the narrator of an interactive game narrative. "
-    "Describe what happens in the game world while respecting the game state, "
-    "conversation history, and current input."
-)
-
-NARRATOR_TASK = (
-    "TASK\n"
-    "No character is responding to this input.\n"
-    "Generate exactly one short narration of what happens in the game world as a result of the current input.\n"
-    "Do not speak as any character, and do not respond as the INPUT CHARACTER.\n"
-    "Use the world state, conversation history, and current input to determine the outcome.\n"
-    "Return only the narration itself."
-)
-
-NARRATOR_INPUT_TYPE_INSTRUCTIONS = (
-    "INPUT TYPE INSTRUCTIONS\n"
-    "If the input type is action, describe the outcome of that action in the game world.\n"
-    "If the input type is speech, describe how the game world reacts to it."
+    "You are an interactive fantasy game narrator. "
+    "Describe what happens in the game world based on "
+    "the current world state, available actions, conversation history, "
+    "and current player input."
 )
 
 
 class NarrativePromptBuilder:
-    """Converts NarrativeContext into the prompt used by the fine-tuned LLM."""
 
-    def build_messages(self, context: NarrativeContext) -> list[dict[str, str]]:
+    def build_messages(
+        self,
+        context: NarrativeContext,
+    ) -> list[dict[str, str]]:
+
         interaction = context.interaction
         state = context.game_state
         knowledge = context.retrieved_knowledge
 
         has_responder = interaction.responder_character is not None
 
-        sections: list[str] = []
+        sections = []
+
+        # --------------------------------------------------
+        # Setting
+        # --------------------------------------------------
+
+        sections.append("### SETTING")
+
+        location = state.location
+
+        sections.append(
+            f"Name: {location.name if location else ''}"
+        )
+
+        category = ""
+        background = ""
+
+        if isinstance(state.setting, dict):
+            category = state.setting.get("category", "")
+            background = state.setting.get("background", "")
+
+        sections.append(f"Category: {category}")
+
+        sections.append(
+            f"Description: {location.description if location else ''}"
+        )
+
+        sections.append(f"Background: {background}")
+
+        # --------------------------------------------------
+        # Input character
+        # --------------------------------------------------
+
+        sections.append("\n### INPUT CHARACTER")
+
+        input_character = self._find_character(
+            state,
+            interaction.input_character,
+        )
+
+        sections.append(
+            f"Name: {interaction.input_character or ''}"
+        )
+
+        sections.append(
+            f"Persona:\n"
+            f"{input_character.description if input_character else ''}"
+        )
+
+        # --------------------------------------------------
+        # Responder character
+        # --------------------------------------------------
 
         if has_responder:
-            sections.append(
-                "TASK\n"
-                "Generate exactly one natural next response from the RESPONDER CHARACTER.\n"
-                "Do not respond as the INPUT CHARACTER.\n"
-                "Use the conversation history and current input to determine the next response.\n"
-                "Stay consistent with the RESPONDER CHARACTER's persona, role, and situation.\n"
-                "Return only the response itself."
+
+            sections.append("\n### RESPONDING CHARACTER")
+
+            responder_character = self._find_character(
+                state,
+                interaction.responder_character,
             )
 
             sections.append(
-                "INPUT TYPE INSTRUCTIONS\n"
-                "If the input type is speech, generate what the responder should say next.\n"
-                "If the input type is action, generate the responder's appropriate next response to that action."
+                f"Name: {interaction.responder_character or ''}"
+            )
+
+            sections.append(
+                f"Persona:\n"
+                f"{responder_character.description if responder_character else ''}"
+            )
+
+        # --------------------------------------------------
+        # World state
+        # --------------------------------------------------
+
+        sections.append("\n### WORLD STATE")
+
+        # Context
+        context_lines = []
+
+        if location:
+            context_lines.append(
+                f"You are in the {location.name}."
+            )
+
+            if location.description:
+                context_lines.append(
+                    location.description
+                )
+
+        if context_lines:
+            sections.append(
+                "Context:\n" + "\n".join(context_lines)
             )
         else:
-            sections.append(NARRATOR_TASK)
-            sections.append(NARRATOR_INPUT_TYPE_INSTRUCTIONS)
+            sections.append("Context:")
 
-        sections.append(self._format_setting(state))
-        sections.append(self._format_input_character(interaction, state))
+        # Room objects
+        present_objects = [
+            obj
+            for obj in state.objects
+            if obj.location is None
+            or (
+                location is not None
+                and obj.location == location.name
+            )
+        ]
+
+        object_names = [
+            obj.name
+            for obj in present_objects
+        ]
+
+        sections.append(
+            "Room objects: "
+            + (", ".join(object_names) if object_names else "None")
+        )
+
+        # Room agents
+        room_agents = [
+            character.name
+            for character in state.characters
+            if character.present
+        ]
+
+        sections.append(
+            "Room agents: "
+            + (", ".join(room_agents) if room_agents else "None")
+        )
+
+        # Object descriptions
+        if present_objects:
+
+            sections.append("Object descriptions:")
+
+            for obj in present_objects:
+
+                description = (
+                    obj.description
+                    if obj.description
+                    else "No description"
+                )
+
+                sections.append(
+                    f"- {obj.name}: {description}"
+                )
+
+                if obj.state:
+                    sections.append(
+                        f"  State: {obj.state}"
+                    )
+
+        else:
+            sections.append(
+                "Object descriptions: None"
+            )
+
+        # Inventory / carrying
+        sections.append(
+            "Carrying: "
+            + (
+                ", ".join(state.inventory)
+                if state.inventory
+                else "None"
+            )
+        )
+
+        # These fields are not currently represented by GameState.
+        sections.append("Wearing: None")
+        sections.append("Wielding: None")
+
+        # Available actions
+        if state.available_actions:
+
+            sections.append("Available actions:")
+
+            for action in state.available_actions:
+                sections.append(
+                    f"- {action}"
+                )
+
+        else:
+            sections.append(
+                "Available actions: None"
+            )
+
+        # --------------------------------------------------
+        # History
+        # --------------------------------------------------
+
+        sections.append("\n### HISTORY")
+
+        if context.history:
+
+            for entry in context.history:
+
+                sections.append(
+                    f"{entry.speaker} "
+                    f"[{entry.entry_type}]: "
+                    f"{entry.text}"
+                )
+
+        else:
+            sections.append("None")
+
+        # --------------------------------------------------
+        # Retrieved knowledge
+        # --------------------------------------------------
+
+        sections.append("\n### RETRIEVED KNOWLEDGE")
+
+        if knowledge.results:
+
+            for result in knowledge.results:
+
+                title = (
+                    result.title
+                    or result.document_id
+                )
+
+                sections.append(
+                    f"- {title} "
+                    f"[score={result.score:.3f}]"
+                )
+
+                sections.append(
+                    f"  {result.content}"
+                )
+
+        else:
+            sections.append("None")
+
+        # --------------------------------------------------
+        # Current player input
+        # --------------------------------------------------
+
+        sections.append("\n### PLAYER INPUT")
+
+        sections.append(
+            interaction.input
+        )
+
+        # --------------------------------------------------
+        # Input type
+        # --------------------------------------------------
+
+        sections.append("\n### INPUT TYPE")
+
+        sections.append(
+            interaction.input_type
+        )
+
+        # --------------------------------------------------
+        # Generation boundary
+        # --------------------------------------------------
+
+        sections.append("\n### RESPONSE")
+
+        user_prompt = "\n".join(sections)
 
         if has_responder:
-            sections.append(self._format_responder(interaction, state))
-
-        sections.append(self._format_world_state(state))
-        sections.append(self._format_history(context))
-        sections.append(self._format_knowledge(knowledge))
-
-        sections.append(
-            "CURRENT INPUT\n"
-            f"{interaction.input}"
-        )
-
-        sections.append(
-            "INPUT TYPE\n"
-            f"{interaction.input_type}"
-        )
-
-        user_prompt = "\n\n".join(sections)
+            system_prompt = SYSTEM_PROMPT
+        else:
+            system_prompt = NARRATOR_SYSTEM_PROMPT
 
         return [
             {
                 "role": "system",
-                "content": (
-                    SYSTEM_PROMPT if has_responder else NARRATOR_SYSTEM_PROMPT
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
@@ -97,136 +306,21 @@ class NarrativePromptBuilder:
             },
         ]
 
-    @staticmethod
-    def _format_setting(state) -> str:
-        if state.location is None:
-            return "SETTING\nUnknown"
-
-        lines = [f"Location: {state.location.name}"]
-
-        if state.location.description:
-            lines.append(f"Description: {state.location.description}")
-
-        if state.setting:
-            lines.append(f"Setting data: {state.setting}")
-
-        return "SETTING\n" + "\n".join(lines)
+    # ------------------------------------------------------
+    # Character lookup
+    # ------------------------------------------------------
 
     @staticmethod
     def _find_character(state, name):
+
         if not name:
             return None
 
         name_lower = name.strip().lower()
 
         for character in state.characters:
+
             if character.name.strip().lower() == name_lower:
                 return character
 
         return None
-
-    def _format_input_character(self, interaction, state) -> str:
-        character = self._find_character(
-            state,
-            interaction.input_character,
-        )
-
-        lines = [
-            "INPUT CHARACTER",
-            interaction.input_character or "Unknown",
-        ]
-
-        if character is not None and character.description:
-            lines.append(f"Persona/Description: {character.description}")
-
-        return "\n".join(lines)
-
-    def _format_responder(self, interaction, state) -> str:
-        name = interaction.responder_character
-
-        lines = [
-            "RESPONDER CHARACTER",
-            name or "Unknown",
-        ]
-
-        character = self._find_character(state, name)
-
-        if character is not None and character.description:
-            lines.append(f"Persona/Description: {character.description}")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_world_state(state) -> str:
-        lines = ["WORLD STATE"]
-
-        if state.characters:
-            lines.append("Characters:")
-            for character in state.characters:
-                status = "present" if character.present else "absent"
-                lines.append(f"- {character.name} ({status})")
-
-        if state.objects:
-            lines.append("Objects:")
-            for obj in state.objects:
-                description = obj.description or "No description"
-                lines.append(f"- {obj.name}: {description}")
-
-                if obj.state:
-                    lines.append(f"  State: {obj.state}")
-
-        if state.inventory:
-            lines.append(f"Inventory: {state.inventory}")
-
-        if state.relationships:
-            lines.append(f"Relationships: {state.relationships}")
-
-        if state.available_actions:
-            lines.append(
-                "Available actions: "
-                + ", ".join(state.available_actions)
-            )
-
-        if state.recent_events:
-            lines.append("Recent events:")
-            for event in state.recent_events:
-                lines.append(
-                    f"- Turn {event.turn}: "
-                    f"{event.event_type}: {event.description}"
-                )
-
-        lines.append(f"Current turn: {state.turn}")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_history(context: NarrativeContext) -> str:
-        lines = ["CONVERSATION HISTORY"]
-
-        if not context.history:
-            lines.append("(none)")
-            return "\n".join(lines)
-
-        for entry in context.history:
-            lines.append(
-                f"{entry.speaker} [{entry.entry_type}]: {entry.text}"
-            )
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_knowledge(retrieved_knowledge) -> str:
-        lines = ["RETRIEVED KNOWLEDGE"]
-
-        if not retrieved_knowledge.results:
-            lines.append("(none)")
-            return "\n".join(lines)
-
-        for result in retrieved_knowledge.results:
-            lines.append(
-                f"- {result.title or result.document_id}"
-                f" [score={result.score:.3f}]"
-            )
-            lines.append(f"  {result.content}")
-
-        return "\n".join(lines)

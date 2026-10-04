@@ -88,7 +88,7 @@ def test_character_interaction_prompts_for_responder_end_to_end():
     system_message, user_message = generator.messages[0]
 
     assert system_message["content"] == SYSTEM_PROMPT
-    assert "RESPONDER CHARACTER\nGuard" in user_message["content"]
+    assert "### RESPONDING CHARACTER\nName: Guard" in user_message["content"]
 
     assert result.success
     assert result.output == "Keep your voice down."
